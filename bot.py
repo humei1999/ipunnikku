@@ -1,0 +1,110 @@
+import discord
+from discord.ext import tasks
+import json
+import os
+
+# =====================
+# Render用設定
+# =====================
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+
+# =====================
+
+intents = discord.Intents.default()
+client = discord.Client(intents=intents)
+
+DATA_FILE = "haiku_data.json"
+
+
+def load_haikus():
+    haikus = []
+
+    with open("haiku.txt", "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if "|" not in line:
+                continue
+
+            haiku, author = line.split("|", 1)
+
+            haikus.append({
+                "haiku": haiku,
+                "author": author
+            })
+
+    return haikus
+
+
+def load_index():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f).get("index", 0)
+    return 0
+
+
+def save_index(index):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump({"index": index}, f)
+
+
+async def send_haiku():
+    haikus = load_haikus()
+
+    if len(haikus) == 0:
+        print("haiku.txt が空です")
+        return
+
+    index = load_index()
+
+    if index >= len(haikus):
+        index = 0
+
+    haiku = haikus[index]["haiku"]
+    author = haikus[index]["author"]
+
+    channel = client.get_channel(CHANNEL_ID)
+
+    if channel:
+        await channel.send(
+            f"📜 今日の一句\n\n"
+            f"━━━━━━━━━━\n\n"
+            f"**{haiku}**\n\n"
+            f"✍ 作者: {author}\n\n"
+            f"━━━━━━━━━━"
+        )
+
+        index += 1
+
+        if index >= len(haikus):
+            index = 0
+
+        save_index(index)
+        print("俳句を投稿しました")
+    else:
+        print("チャンネルを取得できませんでした")
+
+
+@client.event
+async def on_ready():
+    print(f"{client.user} が起動しました")
+
+    # 起動時に1回だけ投稿
+    await send_haiku()
+
+    # 1分ごとに投稿（テスト用）
+    if not minute_haiku.is_running():
+        minute_haiku.start()
+
+
+@tasks.loop(minutes=1)
+async def minute_haiku():
+    await send_haiku()
+
+
+client.run(TOKEN)
