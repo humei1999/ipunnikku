@@ -4,11 +4,13 @@ import json
 import os
 
 # =====================
-# Render用設定
+# Railway の環境変数を読む
 # =====================
-
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+
+print("TOKENあり:", TOKEN is not None)
+print("CHANNEL_ID:", CHANNEL_ID)
 
 # =====================
 
@@ -80,7 +82,6 @@ async def send_haiku():
         )
 
         index += 1
-
         if index >= len(haikus):
             index = 0
 
@@ -94,10 +95,8 @@ async def send_haiku():
 async def on_ready():
     print(f"{client.user} が起動しました")
 
-    # 起動時に1回だけ投稿
     await send_haiku()
 
-    # 1分ごとに投稿（テスト用）
     if not minute_haiku.is_running():
         minute_haiku.start()
 
