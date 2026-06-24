@@ -3,16 +3,11 @@ from discord.ext import tasks
 import json
 import os
 
-# =====================
-# Railway の環境変数を読む
-# =====================
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 
 print("TOKENあり:", TOKEN is not None)
 print("CHANNEL_ID:", CHANNEL_ID)
-
-# =====================
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
@@ -56,23 +51,27 @@ def save_index(index):
 
 
 async def send_haiku():
-    haikus = load_haikus()
+    try:
+        haikus = load_haikus()
 
-    if len(haikus) == 0:
-        print("haiku.txt が空です")
-        return
+        if len(haikus) == 0:
+            print("haiku.txt が空です")
+            return
 
-    index = load_index()
+        index = load_index()
 
-    if index >= len(haikus):
-        index = 0
+        if index >= len(haikus):
+            index = 0
 
-    haiku = haikus[index]["haiku"]
-    author = haikus[index]["author"]
+        haiku = haikus[index]["haiku"]
+        author = haikus[index]["author"]
 
-    channel = client.get_channel(CHANNEL_ID)
+        channel = client.get_channel(CHANNEL_ID)
 
-    if channel:
+        if channel is None:
+            print("チャンネルを取得できませんでした")
+            return
+
         await channel.send(
             f"📜 今日の一句\n\n"
             f"━━━━━━━━━━\n\n"
@@ -87,15 +86,19 @@ async def send_haiku():
 
         save_index(index)
         print("俳句を投稿しました")
-    else:
-        print("チャンネルを取得できませんでした")
+
+    except Exception as e:
+        print("投稿エラー:", e)
 
 
 @client.event
 async def on_ready():
     print(f"{client.user} が起動しました")
 
-    await send_haiku()
+    try:
+        await send_haiku()
+    except Exception as e:
+        print("起動時投稿エラー:", e)
 
     if not minute_haiku.is_running():
         minute_haiku.start()
