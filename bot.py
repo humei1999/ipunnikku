@@ -1,8 +1,12 @@
 import discord
 from discord.ext import tasks
+from datetime import datetime
 import json
 import os
 
+# =========================
+# Render の環境変数から読み込む
+# =========================
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 
@@ -47,31 +51,34 @@ def load_index():
 
 def save_index(index):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump({"index": index}, f)
+        json.dump({"index": index}, f, ensure_ascii=False)
 
 
 async def send_haiku():
+    haikus = load_haikus()
+
+    if len(haikus) == 0:
+        print("haiku.txt が空です")
+        return
+
+    index = load_index()
+
+    if index >= len(haikus):
+        index = 0
+
+    haiku = haikus[index]["haiku"]
+    author = haikus[index]["author"]
+
+    channel = client.get_channel(CHANNEL_ID)
+
+    if channel is None:
+        try:
+            channel = await client.fetch_channel(CHANNEL_ID)
+        except Exception as e:
+            print("チャンネル取得失敗:", e)
+            return
+
     try:
-        haikus = load_haikus()
-
-        if len(haikus) == 0:
-            print("haiku.txt が空です")
-            return
-
-        index = load_index()
-
-        if index >= len(haikus):
-            index = 0
-
-        haiku = haikus[index]["haiku"]
-        author = haikus[index]["author"]
-
-        channel = client.get_channel(CHANNEL_ID)
-
-        if channel is None:
-            print("チャンネルを取得できませんでした")
-            return
-
         await channel.send(
             f"📜 今日の一句\n\n"
             f"━━━━━━━━━━\n\n"
@@ -95,18 +102,21 @@ async def send_haiku():
 async def on_ready():
     print(f"{client.user} が起動しました")
 
-    try:
-        await send_haiku()
-    except Exception as e:
-        print("起動時投稿エラー:", e)
-
-    if not minute_haiku.is_running():
-        minute_haiku.start()
+    # すでに動いていたら二重起動しない
+    if not hourly_haiku.is_running():
+        hourly_haiku.start()
 
 
 @tasks.loop(minutes=1)
-async def minute_haiku():
-    await send_haiku()
+async def hourly_haiku():
+    now = datetime.now()
+
+    # 毎時ちょうど00分だけ投稿
+    if now.minute == 0:
+        print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} 投稿タイミングです")
+        await send_haiku()
+    else:
+        print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} スキップ")
 
 
 client.run(TOKEN)
